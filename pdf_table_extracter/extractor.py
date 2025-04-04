@@ -1,13 +1,22 @@
+import logging
 import pdfplumber
+
+logging.basicConfig(filename="error.log", level=logging.ERROR)
 
 def extract_words_from_pdf(pdf_path):
     all_pages = []
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            words = page.extract_words(extra_attrs=["x0", "x1", "top", "bottom"])
-            all_pages.append(words)
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                words = page.extract_words(extra_attrs=["x0", "x1", "top", "bottom"])
+                if not words:
+                    logging.warning(f"No tables detected in {pdf_path}, page {page.page_number}")
+                all_pages.append(words)
+    except Exception as e:
+        logging.error(f"Error processing {pdf_path}: {str(e)}")
     return all_pages
 
+    
 def group_words_to_rows(words, tolerance=3):
     rows = {}
     for word in words:
@@ -29,9 +38,18 @@ def group_words_to_rows(words, tolerance=3):
 
     return cleaned_rows
 
+
 def extract_table_from_rows(grouped_rows):
     table = []
+    max_cols = max(len(row) for row in grouped_rows)
+
     for row in grouped_rows:
         table_row = [word['text'] for word in row]
+
+        # Fill missing cells with previous row's values (merged cell handling)
+        while len(table_row) < max_cols:
+            table_row.append("")
+
         table.append(table_row)
+    
     return table
